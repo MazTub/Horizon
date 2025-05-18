@@ -262,6 +262,216 @@ class CloudKitSyncManager {
         }.eraseToAnyPublisher()
     }
     
+    // MARK: - Calendar Helpers
+    
+    // Fetch weekends for a specific month
+    func fetchWeekendsForMonth(year: Int, month: Int) -> AnyPublisher<[Date], Error> {
+        return Future<[Date], Error> { promise in
+            // Create calendar to work with weekends
+            let calendar = Calendar.current
+            var weekends = [Date]()
+            
+            // Start from first day of month
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.day = 1
+            
+            guard let startDate = calendar.date(from: components) else {
+                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 108, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
+                return
+            }
+            
+            // Get first day of next month
+            let nextMonth = month == 12 ? 1 : month + 1
+            let nextMonthYear = month == 12 ? year + 1 : year
+            
+            components.year = nextMonthYear
+            components.month = nextMonth
+            components.day = 1
+            
+            guard let endDate = calendar.date(from: components) else {
+                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 109, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
+                return
+            }
+            
+            // Find all weekends in the month
+            var currentDate = startDate
+            
+            // Find first weekend
+            while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
+                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+            }
+            
+            // For each weekend, store the start date
+            while currentDate < endDate {
+                // Get weekend start (Saturday)
+                let weekendStart: Date
+                
+                if calendar.component(.weekday, from: currentDate) == 1 { // Sunday
+                    // If we found a Sunday first, go back one day to get the Saturday
+                    weekendStart = calendar.date(byAdding: .day, value: -1, to: currentDate)!
+                } else { // Saturday
+                    weekendStart = currentDate
+                }
+                
+                // Reset time components to midnight
+                let startOfWeekend = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: weekendStart)!
+                
+                weekends.append(startOfWeekend)
+                
+                // Move to next weekend (add 6 days to get to next Friday, then find next weekend day)
+                currentDate = calendar.date(byAdding: .day, value: 6, to: weekendStart)!
+                while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
+                    currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+                }
+            }
+            
+            // Start fetching weekend entities from CloudKit
+            self.fetchWeekendsFromCloudKit(startDate: startDate, endDate: endDate)
+            
+            promise(.success(weekends))
+        }.eraseToAnyPublisher()
+    }
+    
+    // Fetch weekend status for all months of the year
+    func fetchYearlyWeekendStatus(year: Int) -> AnyPublisher<[Date: String], Error> {
+        return Future<[Date: String], Error> { promise in
+            let context = PersistenceController.shared.container.viewContext
+            
+            // Create calendar to work with weekends
+            let calendar = Calendar.current
+            var weekendStatusMap = [Date: String]()
+            
+            // Start from January 1st
+            var components = DateComponents()
+            components.year = year
+            components.month = 1
+            components.day = 1
+            
+            guard let startDate = calendar.date(from: components) else {
+                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 107, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
+                return
+            }
+            
+            // Get end of year
+            components.year = year + 1
+            guard let endDate = calendar.date(from: components) else {
+                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 109, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
+                return
+            }
+            
+            // Find first weekend
+            var currentDate = startDate
+            while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
+                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+            }
+            
+            // For each weekend, check if there are any events
+            while currentDate < endDate {
+                // Get weekend start (Saturday)
+                let weekendStart: Date
+                
+                if calendar.component(.weekday, from: currentDate) == 1 { // Sunday
+                    // If we found a Sunday first, go back one day to get the Saturday
+                    weekendStart = calendar.date(byAdding: .day, value: -1, to: currentDate)!
+                } else { // Saturday
+                    weekendStart = currentDate
+                }
+                
+                // Get weekend end (Sunday)
+                let weekendEnd = calendar.date(byAdding: .day, value: 1, to: weekendStart)!
+                
+                // Adjust to end of day
+                let endOfWeekend = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: weekendEnd)!
+                
+                // Check for existing WeekendEntity
+                let fetchRequest: NSFetchRequest<WeekendEntity> = WeekendEntity.fetchRequest()
+                fetchRequest.predicate = NSPredicate(format: "startDate <= %@ AND endDate >= %@", 
+                                                    endOfWeekend as NSDate, 
+                                                    weekendStart as NSDate)
+                
+                do {
+                    let weekendEntities = try context.fetch(fetchRequest)
+                    
+                    if let weekend = weekendEntities.first, let status = weekend.status {
+                        // Use the status from the WeekendEntity
+                        weekendStatusMap[weekendStart] = status
+                    } else {
+                        // Determine status based on events
+                        let eventFetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
+                        eventFetchRequest.predicate = NSPredicate(format: "startDate <= %@ AND endDate >= %@", 
+                                                         endOfWeekend as NSDate, 
+                                                         weekendStart as NSDate)
+                        
+                        let events = try context.fetch(eventFetchRequest)
+                        
+                        if !events.isEmpty {
+                            // Check if there are travel events
+                            let travelEvents = events.filter { $0.eventType == "travel" }
+                            if !travelEvents.isEmpty {
+                                weekendStatusMap[weekendStart] = "travel"
+                            } else {
+                                weekendStatusMap[weekendStart] = "plan"
+                            }
+                        } else {
+                            weekendStatusMap[weekendStart] = "free"
+                        }
+                    }
+                } catch {
+                    print("Error fetching data for weekend: \(error)")
+                    weekendStatusMap[weekendStart] = "free" // Default to free on error
+                }
+                
+                // Move to next weekend
+                currentDate = calendar.date(byAdding: .day, value: 6, to: weekendEnd)!
+                while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
+                    currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+                }
+            }
+            
+            // Fetch WeekendEntity records from CloudKit for the entire year
+            self.fetchWeekendsFromCloudKit(startDate: startDate, endDate: endDate)
+            
+            promise(.success(weekendStatusMap))
+        }.eraseToAnyPublisher()
+    }
+    
+    // Fetch weekends from CloudKit
+    private func fetchWeekendsFromCloudKit(startDate: Date, endDate: Date) {
+        let predicate = NSPredicate(format: "startDate <= %@ AND endDate >= %@", 
+                                   endDate as NSDate, 
+                                   startDate as NSDate)
+        
+        let query = CKQuery(recordType: "Weekend", predicate: predicate)
+        
+        let operation = CKQueryOperation(query: query)
+        
+        var fetchedRecords = [CKRecord]()
+        
+        operation.recordMatchedBlock = { _, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("Error fetching weekend record: \(error.localizedDescription)")
+            }
+        }
+        
+        operation.queryResultBlock = { result in
+            switch result {
+            case .success:
+                DispatchQueue.main.async {
+                    self.importCloudKitRecords(fetchedRecords)
+                }
+            case .failure(let error):
+                print("Error performing weekend query: \(error.localizedDescription)")
+            }
+        }
+        
+        container.privateCloudDatabase.add(operation)
+    }
+    
     // MARK: - CloudKit Sync Operations
     
     // Sync user to CloudKit
@@ -275,6 +485,11 @@ class CloudKitSyncManager {
             switch result {
             case .success:
                 print("Successfully saved user record to CloudKit")
+                
+                // Post notification that data has changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
+                }
             case .failure(let error):
                 print("Error saving user record to CloudKit: \(error.localizedDescription)")
             }
@@ -294,6 +509,11 @@ class CloudKitSyncManager {
             switch result {
             case .success:
                 print("Successfully saved event record to CloudKit")
+                
+                // Post notification that data has changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
+                }
                 
                 // If event has a reminder config, sync that too
                 if let reminderConfig = event.reminderConfig, 
@@ -319,6 +539,11 @@ class CloudKitSyncManager {
             switch result {
             case .success:
                 print("Successfully saved reminder config record to CloudKit")
+                
+                // Post notification that data has changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
+                }
             case .failure(let error):
                 print("Error saving reminder config record to CloudKit: \(error.localizedDescription)")
             }
@@ -338,6 +563,11 @@ class CloudKitSyncManager {
             switch result {
             case .success:
                 print("Successfully saved weekend record to CloudKit")
+                
+                // Post notification that data has changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
+                }
             case .failure(let error):
                 print("Error saving weekend record to CloudKit: \(error.localizedDescription)")
             }
@@ -401,7 +631,16 @@ class CloudKitSyncManager {
                 }
             }
             
-            try? context.save()
+            do {
+                try context.save()
+                
+                // Post notification that data has changed
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
+                }
+            } catch {
+                print("Error saving context after importing records: \(error)")
+            }
         }
     }
     
@@ -438,16 +677,72 @@ class CloudKitSyncManager {
     }
     
     private func importUserProfileRecord(_ record: CKRecord, context: NSManagedObjectContext) {
-        // Implement user profile import
-        // This would be similar to the event import method above
+        // Check if user already exists
+        let fetchRequest: NSFetchRequest<UserEntity> = UserEntity.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", record.recordID.recordName)
+        
+        do {
+            let results = try context.fetch(fetchRequest)
+            
+            if let existingUser = results.first {
+                // Update existing user
+                if let updatedUser = UserEntity.fromCKRecord(record, context: context) {
+                    // Copy properties from updated user to existing user
+                    existingUser.email = updatedUser.email
+                    existingUser.displayName = updatedUser.displayName
+                    existingUser.timezone = updatedUser.timezone
+                    existingUser.avatarFull = updatedUser.avatarFull
+                    existingUser.avatarThumb = updatedUser.avatarThumb
+                    
+                    // Delete the temporary updated user
+                    context.delete(updatedUser)
+                }
+            } else {
+                // Create new user
+                _ = UserEntity.fromCKRecord(record, context: context)
+            }
+        } catch {
+            print("Error importing user profile record: \(error)")
+        }
     }
     
     private func importUsersRecord(_ record: CKRecord, context: NSManagedObjectContext) {
-        // Implement users import
+        // Similar to importUserProfileRecord, but with Users record type
+        // Implement as needed based on your data model
     }
     
     private func importWeekendRecord(_ record: CKRecord, context: NSManagedObjectContext) {
-        // Implement weekend import
+        // Check if weekend already exists
+        let fetchRequest: NSFetchRequest<WeekendEntity> = WeekendEntity.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", record.recordID.recordName)
+        
+        do {
+            let results = try context.fetch(fetchRequest)
+            
+            if let existingWeekend = results.first {
+                // Update existing weekend
+                if let updatedWeekend = WeekendEntity.fromCKRecord(record, context: context) {
+                    // Copy properties from updated weekend to existing weekend
+                    existingWeekend.startDate = updatedWeekend.startDate
+                    existingWeekend.endDate = updatedWeekend.endDate
+                    existingWeekend.status = updatedWeekend.status
+                    existingWeekend.notes = updatedWeekend.notes
+                    existingWeekend.location = updatedWeekend.location
+                    existingWeekend.weatherCondition = updatedWeekend.weatherCondition
+                    existingWeekend.weatherTemperature = updatedWeekend.weatherTemperature
+                    existingWeekend.isHighTraffic = updatedWeekend.isHighTraffic
+                    existingWeekend.plannedCount = updatedWeekend.plannedCount
+                    
+                    // Delete the temporary updated weekend
+                    context.delete(updatedWeekend)
+                }
+            } else {
+                // Create new weekend
+                _ = WeekendEntity.fromCKRecord(record, context: context)
+            }
+        } catch {
+            print("Error importing weekend record: \(error)")
+        }
     }
     
     // MARK: - Helper Methods
