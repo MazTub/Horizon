@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A79F37AC2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = A79F37AA2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodeld */; };
+		A79F37B42DCE42CF005F8101 /* UserEntity+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37B22DCE42CF005F8101 /* UserEntity+CoreDataClass.swift */; };
+		A79F37B52DCE42CF005F8101 /* UserEntity+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37B32DCE42CF005F8101 /* UserEntity+CoreDataProperties.swift */; };
+		A79F37B62DCE42CF005F8101 /* EventEntity+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37AE2DCE42CF005F8101 /* EventEntity+CoreDataClass.swift */; };
+		A79F37B72DCE42CF005F8101 /* EventEntity+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37AF2DCE42CF005F8101 /* EventEntity+CoreDataProperties.swift */; };
+		A79F37B82DCE42CF005F8101 /* ReminderConfigEntity+CoreDataClass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37B02DCE42CF005F8101 /* ReminderConfigEntity+CoreDataClass.swift */; };
+		A79F37B92DCE42CF005F8101 /* ReminderConfigEntity+CoreDataProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79F37B12DCE42CF005F8101 /* ReminderConfigEntity+CoreDataProperties.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A79F373E2DCE38C1005F8101 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,13 +37,27 @@
 		A79F372C2DCE38BC005F8101 /* Weekend Horizon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Weekend Horizon.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A79F373D2DCE38C1005F8101 /* Weekend HorizonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Weekend HorizonTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A79F37472DCE38C1005F8101 /* Weekend HorizonUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Weekend HorizonUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A79F37AB2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = WeekendPlanner.xcdatamodel; sourceTree = "<group>"; };
+		A79F37AE2DCE42CF005F8101 /* EventEntity+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "EventEntity+CoreDataClass.swift"; path = "Weekend Horizon/Entities/EventEntity+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A79F37AF2DCE42CF005F8101 /* EventEntity+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "EventEntity+CoreDataProperties.swift"; path = "Weekend Horizon/Entities/EventEntity+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A79F37B02DCE42CF005F8101 /* ReminderConfigEntity+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReminderConfigEntity+CoreDataClass.swift"; path = "Weekend Horizon/Entities/ReminderConfigEntity+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A79F37B12DCE42CF005F8101 /* ReminderConfigEntity+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ReminderConfigEntity+CoreDataProperties.swift"; path = "Weekend Horizon/Entities/ReminderConfigEntity+CoreDataProperties.swift"; sourceTree = "<group>"; };
+		A79F37B22DCE42CF005F8101 /* UserEntity+CoreDataClass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "UserEntity+CoreDataClass.swift"; path = "Weekend Horizon/Entities/UserEntity+CoreDataClass.swift"; sourceTree = "<group>"; };
+		A79F37B32DCE42CF005F8101 /* UserEntity+CoreDataProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "UserEntity+CoreDataProperties.swift"; path = "Weekend Horizon/Entities/UserEntity+CoreDataProperties.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		A79F374F2DCE38C1005F8101 /* Exceptions for "Weekend Horizon" folder in "Weekend Horizon" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"Entities/EventEntity+CoreDataClass.swift",
+				"Entities/EventEntity+CoreDataProperties.swift",
+				"Entities/ReminderConfigEntity+CoreDataClass.swift",
+				"Entities/ReminderConfigEntity+CoreDataProperties.swift",
+				"Entities/UserEntity+CoreDataClass.swift",
+				"Entities/UserEntity+CoreDataProperties.swift",
 				Info.plist,
+				Models/CoreData/WeekendPlanner.xcdatamodeld,
 			);
 			target = A79F372B2DCE38BC005F8101 /* Weekend Horizon */;
 		};
@@ -88,6 +112,13 @@
 		A79F37232DCE38BC005F8101 = {
 			isa = PBXGroup;
 			children = (
+				A79F37AE2DCE42CF005F8101 /* EventEntity+CoreDataClass.swift */,
+				A79F37AF2DCE42CF005F8101 /* EventEntity+CoreDataProperties.swift */,
+				A79F37B02DCE42CF005F8101 /* ReminderConfigEntity+CoreDataClass.swift */,
+				A79F37B12DCE42CF005F8101 /* ReminderConfigEntity+CoreDataProperties.swift */,
+				A79F37B22DCE42CF005F8101 /* UserEntity+CoreDataClass.swift */,
+				A79F37B32DCE42CF005F8101 /* UserEntity+CoreDataProperties.swift */,
+				A79F37AA2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodeld */,
 				A79F372E2DCE38BC005F8101 /* Weekend Horizon */,
 				A79F37402DCE38C1005F8101 /* Weekend HorizonTests */,
 				A79F374A2DCE38C1005F8101 /* Weekend HorizonUITests */,
@@ -249,6 +280,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A79F37AC2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodeld in Sources */,
+				A79F37B42DCE42CF005F8101 /* UserEntity+CoreDataClass.swift in Sources */,
+				A79F37B52DCE42CF005F8101 /* UserEntity+CoreDataProperties.swift in Sources */,
+				A79F37B62DCE42CF005F8101 /* EventEntity+CoreDataClass.swift in Sources */,
+				A79F37B72DCE42CF005F8101 /* EventEntity+CoreDataProperties.swift in Sources */,
+				A79F37B82DCE42CF005F8101 /* ReminderConfigEntity+CoreDataClass.swift in Sources */,
+				A79F37B92DCE42CF005F8101 /* ReminderConfigEntity+CoreDataProperties.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -294,6 +332,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Weekend Horizon/Info.plist";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Weekend Planner needs access to your photo library to select profile images.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -324,6 +363,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Weekend Horizon/Info.plist";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Weekend Planner needs access to your photo library to select profile images.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -575,6 +615,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCVersionGroup section */
+		A79F37AA2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				A79F37AB2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodel */,
+			);
+			currentVersion = A79F37AB2DCE3F0C005F8101 /* WeekendPlanner.xcdatamodel */;
+			name = WeekendPlanner.xcdatamodeld;
+			path = "Weekend Horizon/Models/CoreData/WeekendPlanner.xcdatamodeld";
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
 	};
 	rootObject = A79F37242DCE38BC005F8101 /* Project object */;
 }

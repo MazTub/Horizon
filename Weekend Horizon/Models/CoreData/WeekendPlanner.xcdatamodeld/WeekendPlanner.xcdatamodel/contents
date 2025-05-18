@@ -1,2 +1,30 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24E263" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier=""/>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24E263" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="EventEntity" representedClassName="EventEntity" syncable="YES">
+        <attribute name="dayMask" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="eventDescription" optional="YES" attributeType="String"/>
+        <attribute name="eventType" optional="YES" attributeType="String"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="recordIDValue" optional="YES" attributeType="String"/>
+        <attribute name="startDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <relationship name="reminderConfig" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="ReminderConfigEntity" inverseName="eventRef" inverseEntity="ReminderConfigEntity"/>
+        <relationship name="userRef" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="events" inverseEntity="UserEntity"/>
+    </entity>
+    <entity name="ReminderConfigEntity" representedClassName="ReminderConfigEntity" syncable="YES">
+        <attribute name="mode" optional="YES" attributeType="String"/>
+        <attribute name="offsetMinutes" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="recordIDValue" optional="YES" attributeType="String"/>
+        <relationship name="eventRef" maxCount="1" deletionRule="Nullify" destinationEntity="EventEntity" inverseName="reminderConfig" inverseEntity="EventEntity"/>
+    </entity>
+    <entity name="UserEntity" representedClassName="UserEntity" syncable="YES">
+        <attribute name="avatarFull" optional="YES" attributeType="Binary"/>
+        <attribute name="avatarThumb" optional="YES" attributeType="Binary"/>
+        <attribute name="displayName" optional="YES" attributeType="String"/>
+        <attribute name="email" optional="YES" attributeType="String"/>
+        <attribute name="recordIDValue" optional="YES" attributeType="String"/>
+        <attribute name="timezone" optional="YES" attributeType="String"/>
+        <relationship name="events" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="EventEntity" inverseName="userRef" inverseEntity="EventEntity"/>
+    </entity>
+</model>

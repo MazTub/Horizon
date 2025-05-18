@@ -16,7 +16,7 @@ extension UserEntity {
         return NSFetchRequest<UserEntity>(entityName: "UserEntity")
     }
 
-    @NSManaged public var recordID: String?
+    @NSManaged public var recordIDValue: String?
     @NSManaged public var email: String?
     @NSManaged public var displayName: String?
     @NSManaged public var avatarFull: Data?

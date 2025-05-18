@@ -16,7 +16,7 @@ extension ReminderConfigEntity {
         return NSFetchRequest<ReminderConfigEntity>(entityName: "ReminderConfigEntity")
     }
 
-    @NSManaged public var recordID: String?
+    @NSManaged public var recordIDValue: String?
     @NSManaged public var offsetMinutes: Int16
     @NSManaged public var mode: String?
     @NSManaged public var eventRef: EventEntity?

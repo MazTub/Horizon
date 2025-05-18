@@ -16,7 +16,7 @@ extension EventEntity {
         return NSFetchRequest<EventEntity>(entityName: "EventEntity")
     }
 
-    @NSManaged public var recordID: String?
+    @NSManaged public var recordIDValue: String?
     @NSManaged public var title: String?
     @NSManaged public var startDate: Date?
     @NSManaged public var endDate: Date?
