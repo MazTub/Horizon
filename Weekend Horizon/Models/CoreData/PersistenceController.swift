@@ -1,49 +1,73 @@
 import CoreData
-import CloudKit
 import Combine
 
 class PersistenceController: ObservableObject {
     static let shared = PersistenceController()
     
-    let container: NSPersistentCloudKitContainer
+    let container: NSPersistentContainer
     
     init(inMemory: Bool = false) {
-        container = NSPersistentCloudKitContainer(name: "WeekendPlanner")
+        // Use a regular NSPersistentContainer instead of CloudKit
+        container = NSPersistentContainer(name: "WeekendPlanner")
         
         if inMemory {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
         }
         
-        // CloudKit sync configuration
-        guard let description = container.persistentStoreDescriptions.first else {
-            fatalError("No descriptions found")
+        // Print out the store URL for debugging
+        if let storeURL = container.persistentStoreDescriptions.first?.url {
+            print("Core Data store URL: \(storeURL.absoluteString)")
         }
-        
-        description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-            containerIdentifier: "iCloud.com.yourcompany.weekendplanner"
-        )
-        
-        // Enable history tracking and remote notifications
-        description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         
         container.loadPersistentStores { description, error in
             if let error = error {
-                fatalError("Error loading Core Data: \(error.localizedDescription)")
+                // Log the error but don't crash
+                let nsError = error as NSError
+                print("Core Data loading error: \(error.localizedDescription)")
+                print("Error details: \(nsError.userInfo)")
+                
+                // Try to recover by deleting the store file if it exists
+                self.recreateStoreIfNeeded()
+            } else {
+                print("Core Data store loaded successfully")
             }
         }
         
         // Configure automatic merging
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    }
+    
+    // Try to recover from Core Data errors by resetting the store
+    private func recreateStoreIfNeeded() {
+        guard let storeURL = container.persistentStoreDescriptions.first?.url else {
+            print("Could not find store URL")
+            return
+        }
         
-        // Setup remote change notifications
-        NotificationCenter.default.addObserver(
-            self, 
-            selector: #selector(self.processRemoteStoreChange),
-            name: .NSPersistentStoreRemoteChange, 
-            object: nil
-        )
+        print("Attempting to delete and recreate the store at \(storeURL)")
+        
+        do {
+            try FileManager.default.removeItem(at: storeURL)
+            
+            // Also remove SQLite auxiliary files
+            let sqliteWalURL = storeURL.deletingLastPathComponent().appendingPathComponent(storeURL.lastPathComponent + "-wal")
+            let sqliteShmURL = storeURL.deletingLastPathComponent().appendingPathComponent(storeURL.lastPathComponent + "-shm")
+            
+            try? FileManager.default.removeItem(at: sqliteWalURL)
+            try? FileManager.default.removeItem(at: sqliteShmURL)
+            
+            // Try loading again
+            container.loadPersistentStores { description, error in
+                if let error = error {
+                    print("Still could not load store after deletion: \(error.localizedDescription)")
+                } else {
+                    print("Successfully recreated Core Data store")
+                }
+            }
+        } catch {
+            print("Could not delete Core Data store: \(error.localizedDescription)")
+        }
     }
     
     // Create a background context for async operations
@@ -51,14 +75,6 @@ class PersistenceController: ObservableObject {
         let context = container.newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         return context
-    }
-    
-    // Handle remote changes
-    @objc func processRemoteStoreChange(_ notification: Notification) {
-        // Post a notification for views to update
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .cloudKitDataDidChange, object: nil)
-        }
     }
     
     // Fetch user entity
@@ -80,9 +96,8 @@ class PersistenceController: ObservableObject {
             do {
                 try context.save()
             } catch {
-                // Replace this implementation with code to handle the error appropriately.
                 let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+                print("Core Data save error: \(nsError), \(nsError.userInfo)")
             }
         }
     }
@@ -94,7 +109,7 @@ class PersistenceController: ObservableObject {
     }
 }
 
-// Notification for CloudKit updates
+// Keep this extension for future CloudKit implementation
 extension Notification.Name {
     static let cloudKitDataDidChange = Notification.Name("cloudKitDataDidChange")
 }
