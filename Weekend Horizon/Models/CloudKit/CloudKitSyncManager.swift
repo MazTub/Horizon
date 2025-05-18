@@ -6,7 +6,7 @@ import UIKit
 class CloudKitSyncManager {
     static let shared = CloudKitSyncManager()
     
-    private let container = CKContainer(identifier: "iCloud.com.yourcompany.weekendplanner")
+    private let container = CKContainer(identifier: "iCloud.com.MazharElstub.WeekendView")
     private var cancellables = Set<AnyCancellable>()
     
     // Authentication state
@@ -147,6 +147,9 @@ class CloudKitSyncManager {
                 
                 try context.save()
                 
+                // Sync to CloudKit
+                self.syncUserToCloudKit(userInContext)
+                
                 // Update the published value on main thread
                 DispatchQueue.main.async {
                     self.fetchCurrentUser()
@@ -174,6 +177,9 @@ class CloudKitSyncManager {
             do {
                 let events = try context.fetch(fetchRequest)
                 promise(.success(events))
+                
+                // Also sync from CloudKit
+                self.syncEventsFromCloudKit(startDate: startDate, endDate: endDate)
             } catch {
                 promise(.failure(error))
             }
@@ -228,6 +234,9 @@ class CloudKitSyncManager {
                     
                     try context.save()
                     
+                    // Sync to CloudKit
+                    self.syncEventToCloudKit(event)
+                    
                     // Return the created event on the main thread
                     DispatchQueue.main.async {
                         // Fetch the created event in the main context
@@ -253,294 +262,278 @@ class CloudKitSyncManager {
         }.eraseToAnyPublisher()
     }
     
-    // Update an existing event
-    func updateEvent(event: EventEntity, title: String, startDate: Date, endDate: Date,
-                     eventType: String, location: String, description: String, 
-                     dayMask: Int16) -> AnyPublisher<EventEntity, Error> {
+    // MARK: - CloudKit Sync Operations
+    
+    // Sync user to CloudKit
+    private func syncUserToCloudKit(_ user: UserEntity) {
+        guard let record = (user as CloudKitRepresentable).toCKRecord() else { return }
         
-        return Future<EventEntity, Error> { promise in
-            let context = PersistenceController.shared.newBackgroundContext()
-            
-            context.perform {
-                // Fetch the event entity in the background context
-                let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", event.recordIDValue ?? "")
-                
-                do {
-                    let results = try context.fetch(fetchRequest)
-                    guard let eventInContext = results.first else {
-                        throw NSError(domain: "CloudKitSyncManager", code: 103, userInfo: [NSLocalizedDescriptionKey: "Event not found in context"])
-                    }
-                    
-                    // Update event properties
-                    eventInContext.title = title
-                    eventInContext.startDate = startDate
-                    eventInContext.endDate = endDate
-                    eventInContext.eventType = eventType
-                    eventInContext.location = location
-                    eventInContext.eventDescription = description
-                    eventInContext.dayMask = dayMask
-                    
-                    try context.save()
-                    
-                    // Return the updated event on the main thread
-                    DispatchQueue.main.async {
-                        // Fetch the updated event in the main context
-                        let mainContext = PersistenceController.shared.container.viewContext
-                        let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                        fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", event.recordIDValue ?? "")
-                        
-                        do {
-                            let results = try mainContext.fetch(fetchRequest)
-                            if let mainContextEvent = results.first {
-                                promise(.success(mainContextEvent))
-                            } else {
-                                throw NSError(domain: "CloudKitSyncManager", code: 104, userInfo: [NSLocalizedDescriptionKey: "Updated event not found in main context"])
-                            }
-                        } catch {
-                            promise(.failure(error))
-                        }
-                    }
-                } catch {
-                    promise(.failure(error))
-                }
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        
+        operation.perRecordSaveBlock = { recordID, result in
+            switch result {
+            case .success:
+                print("Successfully saved user record to CloudKit")
+            case .failure(let error):
+                print("Error saving user record to CloudKit: \(error.localizedDescription)")
             }
-        }.eraseToAnyPublisher()
+        }
+        
+        container.privateCloudDatabase.add(operation)
     }
     
-    // Delete an event
-    func deleteEvent(event: EventEntity) -> AnyPublisher<Bool, Error> {
-        return Future<Bool, Error> { promise in
-            let context = PersistenceController.shared.newBackgroundContext()
-            
-            context.perform {
-                // Fetch the event entity in the background context
-                let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", event.recordIDValue ?? "")
+    // Sync event to CloudKit
+    private func syncEventToCloudKit(_ event: EventEntity) {
+        guard let record = (event as CloudKitRepresentable).toCKRecord() else { return }
+        
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        
+        operation.perRecordSaveBlock = { recordID, result in
+            switch result {
+            case .success:
+                print("Successfully saved event record to CloudKit")
                 
-                do {
-                    let results = try context.fetch(fetchRequest)
-                    if let eventInContext = results.first {
-                        context.delete(eventInContext)
-                    }
-                    
-                    try context.save()
-                    promise(.success(true))
-                } catch {
-                    promise(.failure(error))
+                // If event has a reminder config, sync that too
+                if let reminderConfig = event.reminderConfig, 
+                   let reminderRecord = (reminderConfig as CloudKitRepresentable).toCKRecord() {
+                    self.syncReminderConfigToCloudKit(reminderConfig)
                 }
+            case .failure(let error):
+                print("Error saving event record to CloudKit: \(error.localizedDescription)")
             }
-        }.eraseToAnyPublisher()
+        }
+        
+        container.privateCloudDatabase.add(operation)
     }
     
-    // MARK: - Reminder Configuration
-    
-    // Update reminder configuration
-    func updateReminderConfig(for event: EventEntity, offsetMinutes: Int16, mode: String) -> AnyPublisher<ReminderConfigEntity, Error> {
-        return Future<ReminderConfigEntity, Error> { promise in
-            let context = PersistenceController.shared.newBackgroundContext()
-            
-            context.perform {
-                // Fetch the event entity in the background context
-                let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", event.recordIDValue ?? "")
-                
-                do {
-                    let results = try context.fetch(fetchRequest)
-                    guard let eventInContext = results.first else {
-                        throw NSError(domain: "CloudKitSyncManager", code: 105, userInfo: [NSLocalizedDescriptionKey: "Event not found in context"])
-                    }
-                    
-                    // Check if reminder config exists
-                    let reminderConfig: ReminderConfigEntity
-                    
-                    if let existingConfig = eventInContext.reminderConfig {
-                        reminderConfig = existingConfig
-                    } else {
-                        reminderConfig = ReminderConfigEntity(context: context)
-                        reminderConfig.recordIDValue = UUID().uuidString
-                        reminderConfig.eventRef = eventInContext
-                    }
-                    
-                    // Update reminder config properties
-                    reminderConfig.offsetMinutes = offsetMinutes
-                    reminderConfig.mode = mode
-                    
-                    try context.save()
-                    
-                    // Return the updated reminder config on the main thread
-                    DispatchQueue.main.async {
-                        // Fetch the updated reminder config in the main context
-                        let mainContext = PersistenceController.shared.container.viewContext
-                        let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                        fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", eventInContext.recordIDValue ?? "")
-                        
-                        do {
-                            let results = try mainContext.fetch(fetchRequest)
-                            if let mainContextEvent = results.first, let mainContextReminder = mainContextEvent.reminderConfig {
-                                promise(.success(mainContextReminder))
-                            } else {
-                                throw NSError(domain: "CloudKitSyncManager", code: 106, userInfo: [NSLocalizedDescriptionKey: "Updated reminder config not found in main context"])
-                            }
-                        } catch {
-                            promise(.failure(error))
-                        }
-                    }
-                } catch {
-                    promise(.failure(error))
-                }
+    // Sync reminder config to CloudKit
+    private func syncReminderConfigToCloudKit(_ reminderConfig: ReminderConfigEntity) {
+        guard let record = (reminderConfig as CloudKitRepresentable).toCKRecord() else { return }
+        
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        
+        operation.perRecordSaveBlock = { recordID, result in
+            switch result {
+            case .success:
+                print("Successfully saved reminder config record to CloudKit")
+            case .failure(let error):
+                print("Error saving reminder config record to CloudKit: \(error.localizedDescription)")
             }
-        }.eraseToAnyPublisher()
+        }
+        
+        container.privateCloudDatabase.add(operation)
     }
     
-    // MARK: - Weekend Status Helpers
-    
-    // Fetch weekend status for all months of the year
-    func fetchYearlyWeekendStatus(year: Int) -> AnyPublisher<[Date: String], Error> {
-        return Future<[Date: String], Error> { promise in
-            let context = PersistenceController.shared.container.viewContext
-            
-            // Create calendar to work with weekends
-            let calendar = Calendar.current
-            var weekendStatusMap = [Date: String]()
-            
-            // Start from January 1st
-            var components = DateComponents()
-            components.year = year
-            components.month = 1
-            components.day = 1
-            
-            guard let startDate = calendar.date(from: components) else {
-                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 107, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
-                return
+    // Sync weekend to CloudKit
+    private func syncWeekendToCloudKit(_ weekend: WeekendEntity) {
+        guard let record = (weekend as CloudKitRepresentable).toCKRecord() else { return }
+        
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        
+        operation.perRecordSaveBlock = { recordID, result in
+            switch result {
+            case .success:
+                print("Successfully saved weekend record to CloudKit")
+            case .failure(let error):
+                print("Error saving weekend record to CloudKit: \(error.localizedDescription)")
             }
-            
-            // Find all weekends in the year
-            var currentDate = startDate
-            let oneYearLater = calendar.date(byAdding: .year, value: 1, to: startDate)!
-            
-            // Find first weekend
-            while !calendar.isDateInWeekend(currentDate) && currentDate < oneYearLater {
-                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
-            }
-            
-            // For each weekend, check if there are any events
-            while currentDate < oneYearLater {
-                // Get weekend start (Saturday)
-                let weekendStart = currentDate
-                
-                // Get weekend end (Sunday)
-                var weekendEnd = weekendStart
-                if calendar.component(.weekday, from: weekendStart) == 1 { // Sunday
-                    weekendEnd = weekendStart
-                } else { // Saturday
-                    weekendEnd = calendar.date(byAdding: .day, value: 1, to: weekendStart)!
-                }
-                
-                // Adjust to end of day
-                let endOfWeekend = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: weekendEnd)!
-                
-                // Fetch events for this weekend
-                let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
-                fetchRequest.predicate = NSPredicate(format: "startDate <= %@ AND endDate >= %@", 
-                                                    endOfWeekend as NSDate, 
-                                                    weekendStart as NSDate)
-                
-                do {
-                    let events = try context.fetch(fetchRequest)
-                    
-                    // Determine weekend status based on events
-                    if !events.isEmpty {
-                        // Check if there are travel events
-                        let travelEvents = events.filter { $0.eventType == "travel" }
-                        if !travelEvents.isEmpty {
-                            weekendStatusMap[weekendStart] = "travel"
-                        } else {
-                            weekendStatusMap[weekendStart] = "plan"
-                        }
-                    } else {
-                        weekendStatusMap[weekendStart] = "free"
-                    }
-                } catch {
-                    print("Error fetching events for weekend: \(error)")
-                    weekendStatusMap[weekendStart] = "free" // Default to free on error
-                }
-                
-                // Move to next weekend
-                currentDate = calendar.date(byAdding: .day, value: 6, to: weekendEnd)!
-                while !calendar.isDateInWeekend(currentDate) && currentDate < oneYearLater {
-                    currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
-                }
-            }
-            
-            promise(.success(weekendStatusMap))
-        }.eraseToAnyPublisher()
+        }
+        
+        container.privateCloudDatabase.add(operation)
     }
     
-    // Fetch weekends for a specific month
-    func fetchWeekendsForMonth(year: Int, month: Int) -> AnyPublisher<[Date], Error> {
-        return Future<[Date], Error> { promise in
-            // Create calendar to work with weekends
-            let calendar = Calendar.current
-            var weekends = [Date]()
-            
-            // Start from first day of month
-            var components = DateComponents()
-            components.year = year
-            components.month = month
-            components.day = 1
-            
-            guard let startDate = calendar.date(from: components) else {
-                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 108, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
-                return
+    // Sync from CloudKit for events
+    private func syncEventsFromCloudKit(startDate: Date, endDate: Date) {
+        let predicate = NSPredicate(format: "startDate <= %@ AND endDate >= %@", 
+                                   endDate as NSDate, 
+                                   startDate as NSDate)
+        
+        let query = CKQuery(recordType: "Event", predicate: predicate)
+        
+        let operation = CKQueryOperation(query: query)
+        
+        var fetchedRecords = [CKRecord]()
+        
+        operation.recordMatchedBlock = { _, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("Error fetching record: \(error.localizedDescription)")
             }
-            
-            // Get first day of next month
-            let nextMonth = month == 12 ? 1 : month + 1
-            let nextMonthYear = month == 12 ? year + 1 : year
-            
-            components.year = nextMonthYear
-            components.month = nextMonth
-            components.day = 1
-            
-            guard let endDate = calendar.date(from: components) else {
-                promise(.failure(NSError(domain: "CloudKitSyncManager", code: 109, userInfo: [NSLocalizedDescriptionKey: "Invalid date components"])))
-                return
-            }
-            
-            // Find all weekends in the month
-            var currentDate = startDate
-            
-            // Find first weekend
-            while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
-                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
-            }
-            
-            // For each weekend, store the start date
-            while currentDate < endDate {
-                // Get weekend start (Saturday)
-                let weekendStart: Date
-                
-                if calendar.component(.weekday, from: currentDate) == 1 { // Sunday
-                    // If we found a Sunday first, go back one day to get the Saturday
-                    weekendStart = calendar.date(byAdding: .day, value: -1, to: currentDate)!
-                } else { // Saturday
-                    weekendStart = currentDate
+        }
+        
+        operation.queryResultBlock = { result in
+            switch result {
+            case .success:
+                DispatchQueue.main.async {
+                    self.importCloudKitRecords(fetchedRecords)
                 }
-                
-                // Reset time components to midnight
-                let startOfWeekend = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: weekendStart)!
-                
-                weekends.append(startOfWeekend)
-                
-                // Move to next weekend (add 6 days to get to next Friday, then find next weekend day)
-                currentDate = calendar.date(byAdding: .day, value: 6, to: weekendStart)!
-                while !calendar.isDateInWeekend(currentDate) && currentDate < endDate {
-                    currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+            case .failure(let error):
+                print("Error performing query: \(error.localizedDescription)")
+            }
+        }
+        
+        container.privateCloudDatabase.add(operation)
+    }
+    
+    // Import CloudKit records to Core Data
+    private func importCloudKitRecords(_ records: [CKRecord]) {
+        let context = PersistenceController.shared.newBackgroundContext()
+        
+        context.perform {
+            for record in records {
+                switch record.recordType {
+                case "Event":
+                    self.importEventRecord(record, context: context)
+                case "UserProfile":
+                    self.importUserProfileRecord(record, context: context)
+                case "Users":
+                    self.importUsersRecord(record, context: context)
+                case "Weekend":
+                    self.importWeekendRecord(record, context: context)
+                default:
+                    break
                 }
             }
             
-            promise(.success(weekends))
-        }.eraseToAnyPublisher()
+            try? context.save()
+        }
+    }
+    
+    private func importEventRecord(_ record: CKRecord, context: NSManagedObjectContext) {
+        // Check if event already exists
+        let fetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", record.recordID.recordName)
+        
+        do {
+            let results = try context.fetch(fetchRequest)
+            
+            if let existingEvent = results.first {
+                // Update existing event
+                if let updatedEvent = EventEntity.fromCKRecord(record, context: context) {
+                    // Copy properties from updated event to existing event
+                    existingEvent.title = updatedEvent.title
+                    existingEvent.startDate = updatedEvent.startDate
+                    existingEvent.endDate = updatedEvent.endDate
+                    existingEvent.eventType = updatedEvent.eventType
+                    existingEvent.location = updatedEvent.location
+                    existingEvent.eventDescription = updatedEvent.eventDescription
+                    existingEvent.dayMask = updatedEvent.dayMask
+                    
+                    // Delete the temporary updated event
+                    context.delete(updatedEvent)
+                }
+            } else {
+                // Create new event
+                _ = EventEntity.fromCKRecord(record, context: context)
+            }
+        } catch {
+            print("Error importing event record: \(error)")
+        }
+    }
+    
+    private func importUserProfileRecord(_ record: CKRecord, context: NSManagedObjectContext) {
+        // Implement user profile import
+        // This would be similar to the event import method above
+    }
+    
+    private func importUsersRecord(_ record: CKRecord, context: NSManagedObjectContext) {
+        // Implement users import
+    }
+    
+    private func importWeekendRecord(_ record: CKRecord, context: NSManagedObjectContext) {
+        // Implement weekend import
+    }
+    
+    // MARK: - Helper Methods
+    
+    // Function to manually trigger sync
+    func performFullSync() {
+        // Sync all local data to CloudKit
+        syncAllLocalDataToCloudKit()
+        
+        // Fetch all data from CloudKit
+        fetchAllDataFromCloudKit()
+    }
+    
+    private func syncAllLocalDataToCloudKit() {
+        let context = PersistenceController.shared.container.viewContext
+        
+        // Sync all users
+        let userFetchRequest: NSFetchRequest<UserEntity> = UserEntity.fetchRequest()
+        if let users = try? context.fetch(userFetchRequest) {
+            for user in users {
+                syncUserToCloudKit(user)
+            }
+        }
+        
+        // Sync all events
+        let eventFetchRequest: NSFetchRequest<EventEntity> = EventEntity.fetchRequest()
+        if let events = try? context.fetch(eventFetchRequest) {
+            for event in events {
+                syncEventToCloudKit(event)
+            }
+        }
+        
+        // Sync all weekends
+        let weekendFetchRequest: NSFetchRequest<WeekendEntity> = WeekendEntity.fetchRequest()
+        if let weekends = try? context.fetch(weekendFetchRequest) {
+            for weekend in weekends {
+                syncWeekendToCloudKit(weekend)
+            }
+        }
+    }
+    
+    private func fetchAllDataFromCloudKit() {
+        // Fetch all record types from CloudKit
+        fetchRecordsOfType("Event")
+        fetchRecordsOfType("UserProfile")
+        fetchRecordsOfType("Users")
+        fetchRecordsOfType("Weekend")
+    }
+    
+    private func fetchRecordsOfType(_ recordType: String) {
+        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+        let operation = CKQueryOperation(query: query)
+        
+        var fetchedRecords = [CKRecord]()
+        
+        operation.recordMatchedBlock = { _, result in
+            switch result {
+            case .success(let record):
+                fetchedRecords.append(record)
+            case .failure(let error):
+                print("Error fetching \(recordType) record: \(error.localizedDescription)")
+            }
+        }
+        
+        operation.queryResultBlock = { result in
+            switch result {
+            case .success:
+                DispatchQueue.main.async {
+                    self.importCloudKitRecords(fetchedRecords)
+                }
+            case .failure(let error):
+                print("Error performing \(recordType) query: \(error.localizedDescription)")
+            }
+        }
+        
+        container.privateCloudDatabase.add(operation)
+    }
+}
+
+// MARK: - UIImage Extension
+
+extension UIImage {
+    func resized(to size: CGSize) -> UIImage? {
+        UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
+        defer { UIGraphicsEndImageContext() }
+        draw(in: CGRect(origin: .zero, size: size))
+        return UIGraphicsGetImageFromCurrentImageContext()
     }
 }

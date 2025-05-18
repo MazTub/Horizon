@@ -17,7 +17,7 @@ extension UserEntity: CloudKitRepresentable {
     
     func toCKRecord() -> CKRecord {
         let recordID = CKRecord.ID(recordName: self.recordIDValue ?? UUID().uuidString)
-        let record = CKRecord(recordType: "UserEntity", recordID: recordID)
+        let record = CKRecord(recordType: "UserProfile", recordID: recordID)
         
         record["email"] = self.email as CKRecordValue?
         record["displayName"] = self.displayName as CKRecordValue?
@@ -69,7 +69,7 @@ extension EventEntity: CloudKitRepresentable {
     
     func toCKRecord() -> CKRecord {
         let recordID = CKRecord.ID(recordName: self.recordIDValue ?? UUID().uuidString)
-        let record = CKRecord(recordType: "EventEntity", recordID: recordID)
+        let record = CKRecord(recordType: "Event", recordID: recordID)
         
         record["title"] = self.title as CKRecordValue?
         record["startDate"] = self.startDate as CKRecordValue?
@@ -168,6 +168,72 @@ extension ReminderConfigEntity: CloudKitRepresentable {
                 }
             } catch {
                 print("Error fetching referenced event: \(error)")
+            }
+        }
+        
+        return entity
+    }
+}
+
+// Extension for WeekendEntity CloudKit mapping
+extension WeekendEntity: CloudKitRepresentable {
+    var recordID: String? {
+        get { return self.recordIDValue }
+        set { self.recordIDValue = newValue }
+    }
+    
+    func toCKRecord() -> CKRecord {
+        let recordID = CKRecord.ID(recordName: self.recordIDValue ?? UUID().uuidString)
+        let record = CKRecord(recordType: "Weekend", recordID: recordID)
+        
+        record["startDate"] = self.startDate as CKRecordValue?
+        record["endDate"] = self.endDate as CKRecordValue?
+        record["status"] = self.status as CKRecordValue?
+        record["notes"] = self.notes as CKRecordValue?
+        record["location"] = self.location as CKRecordValue?
+        record["weatherCondition"] = self.weatherCondition as CKRecordValue?
+        record["weatherTemperature"] = self.weatherTemperature as NSNumber
+        record["isHighTraffic"] = self.isHighTraffic as NSNumber
+        record["plannedCount"] = self.plannedCount as NSNumber
+        
+        // Set up reference to user
+        if let userRecordID = self.userRef?.recordIDValue {
+            let reference = CKRecord.Reference(
+                recordID: CKRecord.ID(recordName: userRecordID),
+                action: .deleteSelf
+            )
+            record["userRef"] = reference
+        }
+        
+        return record
+    }
+    
+    static func fromCKRecord(_ record: CKRecord, context: NSManagedObjectContext) -> Self? {
+        guard let entity = WeekendEntity(context: context) as? Self else { return nil }
+        (entity as WeekendEntity).recordIDValue = record.recordID.recordName
+        (entity as WeekendEntity).startDate = record["startDate"] as? Date
+        (entity as WeekendEntity).endDate = record["endDate"] as? Date
+        (entity as WeekendEntity).status = record["status"] as? String
+        (entity as WeekendEntity).notes = record["notes"] as? String
+        (entity as WeekendEntity).location = record["location"] as? String
+        (entity as WeekendEntity).weatherCondition = record["weatherCondition"] as? String
+        (entity as WeekendEntity).weatherTemperature = (record["weatherTemperature"] as? NSNumber)?.doubleValue ?? 0.0
+        (entity as WeekendEntity).isHighTraffic = (record["isHighTraffic"] as? NSNumber)?.boolValue ?? false
+        (entity as WeekendEntity).plannedCount = (record["plannedCount"] as? NSNumber)?.int16Value ?? 0
+        
+        // Handle user reference
+        if let reference = record["userRef"] as? CKRecord.Reference {
+            // Fetch or create user
+            let fetchRequest: NSFetchRequest<UserEntity> = UserEntity.fetchRequest()
+            fetchRequest.predicate = NSPredicate(format: "recordIDValue == %@", reference.recordID.recordName)
+            
+            do {
+                let results = try context.fetch(fetchRequest)
+                if let user = results.first {
+                    (entity as WeekendEntity).userRef = user
+                }
+            } catch {
+                print("Error fetching referenced user: \(error)")
             }
         }
         

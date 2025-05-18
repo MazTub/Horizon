@@ -26,5 +26,19 @@
         <attribute name="recordIDValue" optional="YES" attributeType="String"/>
         <attribute name="timezone" optional="YES" attributeType="String"/>
         <relationship name="events" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="EventEntity" inverseName="userRef" inverseEntity="EventEntity"/>
+        <relationship name="weekends" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="WeekendEntity" inverseName="userRef" inverseEntity="WeekendEntity"/>
+    </entity>
+    <entity name="WeekendEntity" representedClassName="WeekendEntity" syncable="YES">
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isHighTraffic" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="plannedCount" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="recordIDValue" optional="YES" attributeType="String"/>
+        <attribute name="startDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="weatherCondition" optional="YES" attributeType="String"/>
+        <attribute name="weatherTemperature" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <relationship name="userRef" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="weekends" inverseEntity="UserEntity"/>
     </entity>
 </model>
