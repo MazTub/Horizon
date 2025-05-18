@@ -5,6 +5,7 @@ struct EventFormSheet: View {
     @StateObject private var viewModel: EventViewModel
     
     @State private var showingDeleteConfirmation = false
+    @State private var alertItem: AlertItem?
     
     // Initialize for creating a new event
     init(weekendDate: Date) {
@@ -45,13 +46,14 @@ struct EventFormSheet: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         viewModel.saveEvent()
+                        checkForAlerts()
                     }
                     .disabled(viewModel.isLoading)
                 }
             }
             .disabled(viewModel.isLoading)
             .overlay(LoadingOverlay(isLoading: viewModel.isLoading))
-            .alert(item: alertItem) { item in
+            .alert(item: $alertItem) { item in
                 Alert(
                     title: Text(item.title),
                     message: Text(item.message),
@@ -69,30 +71,35 @@ struct EventFormSheet: View {
                     buttons: [
                         .destructive(Text("Delete")) {
                             viewModel.deleteEvent()
+                            checkForAlerts()
                         },
                         .cancel()
                     ]
                 )
             }
+            .onReceive(viewModel.$errorMessage) { _ in
+                checkForAlerts()
+            }
+            .onReceive(viewModel.$successMessage) { _ in
+                checkForAlerts()
+            }
         }
     }
     
-    private var alertItem: AlertItem? {
+    private func checkForAlerts() {
         if let errorMessage = viewModel.errorMessage {
-            return AlertItem(
+            alertItem = AlertItem(
                 title: "Error",
                 message: errorMessage,
                 isSuccess: false
             )
         } else if let successMessage = viewModel.successMessage {
-            return AlertItem(
+            alertItem = AlertItem(
                 title: "Success",
                 message: successMessage,
                 isSuccess: true
             )
         }
-        
-        return nil
     }
 }
 
