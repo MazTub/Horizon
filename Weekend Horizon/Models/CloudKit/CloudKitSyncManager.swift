@@ -42,22 +42,26 @@ class CloudKitSyncManager {
             }
             
             let operation = CKFetchRecordsOperation(recordIDs: [recordID])
-            operation.fetchRecordsResultBlock = { result in
-                        switch result {
-                        case .success(let recordsDictionary):
-                            if let record = recordsDictionary[recordID] {
-                                DispatchQueue.main.async {
-                                    self?.createOrUpdateUserEntity(with: record)
-                                }
-                            }
-                        case .failure(let error):
-                            print("Error fetching user record: \(error.localizedDescription)")
-                        }
+            operation.perRecordResultBlock = { recordID, result in
+                switch result {
+                case .success(let record):
+                    DispatchQueue.main.async {
+                        self?.createOrUpdateUserEntity(with: record)
                     }
-                    
-                    self?.container.privateCloudDatabase.add(operation)
+                case .failure(let error):
+                    print("Error fetching user record: \(error.localizedDescription)")
                 }
             }
+            
+            operation.fetchRecordsResultBlock = { result in
+                if case .failure(let error) = result {
+                    print("Error in fetch operation: \(error.localizedDescription)")
+                }
+            }
+            
+            self?.container.privateCloudDatabase.add(operation)
+        }
+    }
     
     // Create or update user entity in CoreData
     private func createOrUpdateUserEntity(with record: CKRecord) {
