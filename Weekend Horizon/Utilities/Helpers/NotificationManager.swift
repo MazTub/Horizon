@@ -1,6 +1,7 @@
 import Foundation
 import UserNotifications
 import SwiftUI
+import UIKit
 
 class NotificationManager {
     static let shared = NotificationManager()
@@ -208,14 +209,18 @@ class NotificationManager {
     }
     
     // Get current badge count
-    func getBadgeCount() -> Int {
-        // We need to use async method with completion handler, so return 0 and consider
-        // redesigning this functionality to be async
-        var count = 0
-        UNUserNotificationCenter.current().getBadgeCount { badgeCount in
-            count = badgeCount
+    func getBadgeCount(completion: @escaping (Int) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                // Return the badge count from notification settings
+                // If badge is not enabled, this will be 0
+                if let badgeCount = UIApplication.shared.applicationIconBadgeNumber as? Int {
+                    completion(badgeCount)
+                } else {
+                    completion(0)
+                }
+            }
         }
-        return count
     }
     
     // MARK: - Notification Categories and Actions
@@ -469,4 +474,14 @@ class NotificationObserver: ObservableObject {
 
 extension Notification.Name {
     static let inAppNotification = Notification.Name("inAppNotification")
+    static let navigateToEvent = Notification.Name("navigateToEvent")
+}
+
+// Extension to implement getBadgeCount on UNUserNotificationCenter
+extension UNUserNotificationCenter {
+    func getBadgeCount(_ completion: @escaping (Int) -> Void) {
+        DispatchQueue.main.async {
+            completion(UIApplication.shared.applicationIconBadgeNumber)
+        }
+    }
 }
