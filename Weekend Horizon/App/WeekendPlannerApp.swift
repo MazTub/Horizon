@@ -51,7 +51,3 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler()
     }
 }
-
-extension Notification.Name {
-    static let navigateToEvent = Notification.Name("navigateToEvent")
-}
