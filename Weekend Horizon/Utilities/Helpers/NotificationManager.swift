@@ -212,12 +212,9 @@ class NotificationManager {
     func getBadgeCount(completion: @escaping (Int) -> Void) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
-                // Return the badge count from notification settings
-                // If badge is not enabled, this will be 0
-                if let badgeCount = UIApplication.shared.applicationIconBadgeNumber as? Int {
-                    completion(badgeCount)
-                } else {
-                    completion(0)
+                // Use the proper way to get badge count in iOS 17+
+                UNUserNotificationCenter.current().getBadgeCount { count in
+                    completion(count)
                 }
             }
         }
@@ -480,8 +477,22 @@ extension Notification.Name {
 // Extension to implement getBadgeCount on UNUserNotificationCenter
 extension UNUserNotificationCenter {
     func getBadgeCount(_ completion: @escaping (Int) -> Void) {
-        DispatchQueue.main.async {
-            completion(UIApplication.shared.applicationIconBadgeNumber)
+        // Get pending notification requests to count badges
+        getPendingNotificationRequests { requests in
+            var badgeCount = 0
+            
+            // Some apps may want to count number of pending notifications
+            // Here we'll just return the current badge count
+            UNUserNotificationCenter.current().getDeliveredNotifications { notifications in
+                if let notification = notifications.first, 
+                   let badge = notification.request.content.badge as? Int {
+                    badgeCount = badge
+                }
+                
+                DispatchQueue.main.async {
+                    completion(badgeCount)
+                }
+            }
         }
     }
 }

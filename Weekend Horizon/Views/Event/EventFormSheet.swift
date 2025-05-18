@@ -19,92 +19,12 @@ struct EventFormSheet: View {
     var body: some View {
         NavigationView {
             Form {
-                // Event Details
-                Section(header: Text("Event Details")) {
-                    TextField("Title", text: $viewModel.title)
-                        .textContentType(.none)
-                        .autocapitalization(.words)
-                    
-                    Picker("Type", selection: $viewModel.eventType) {
-                        Text("Plans").tag("plan")
-                        Text("Travel").tag("travel")
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    TextField("Location", text: $viewModel.location)
-                        .textContentType(.fullStreetAddress)
-                    
-                    ZStack(alignment: .topLeading) {
-                        if viewModel.eventDescription.isEmpty {
-                            Text("Description")
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                                .padding(.leading, 4)
-                        }
-                        
-                        TextEditor(text: $viewModel.eventDescription)
-                            .frame(minHeight: 100)
-                    }
-                }
-                
-                // Date & Time
-                Section(header: Text("Date & Time")) {
-                    DatePicker("Start", selection: $viewModel.startDate, displayedComponents: [.date, .hourAndMinute])
-                    
-                    DatePicker("End", selection: $viewModel.endDate, displayedComponents: [.date, .hourAndMinute])
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Days")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        HStack {
-                            ForEach([1, 2], id: \.self) { day in
-                                DaySelectionButton(
-                                    day: day,
-                                    isSelected: viewModel.isDaySelected(day),
-                                    onToggle: {
-                                        viewModel.toggleDay(day)
-                                    }
-                                )
-                            }
-                            
-                            Spacer()
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                // Reminder
-                Section(header: Text("Reminder")) {
-                    Toggle("Remind me", isOn: $viewModel.reminderEnabled)
-                    
-                    if viewModel.reminderEnabled {
-                        HStack {
-                            Text("Time Before")
-                            
-                            Spacer()
-                            
-                            Picker("Time Before", selection: $viewModel.reminderOffset) {
-                                Text("15 minutes").tag(15)
-                                Text("30 minutes").tag(30)
-                                Text("1 hour").tag(60)
-                                Text("2 hours").tag(120)
-                                Text("1 day").tag(1440)
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                        }
-                        
-                        Picker("Notification Type", selection: $viewModel.reminderMode) {
-                            Text("In-App").tag("inApp")
-                            Text("Push Notification").tag("push")
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
-                }
+                EventDetailsSection(viewModel: viewModel)
+                DateTimeSection(viewModel: viewModel)
+                ReminderSection(viewModel: viewModel)
                 
                 // Delete button (only for editing)
-                if viewModel is EventViewModel && viewModel.eventBeingEdited != nil {
+                if viewModel.eventBeingEdited != nil {
                     Section {
                         Button("Delete Event") {
                             showingDeleteConfirmation = true
@@ -130,20 +50,7 @@ struct EventFormSheet: View {
                 }
             }
             .disabled(viewModel.isLoading)
-            .overlay(
-                ZStack {
-                    if viewModel.isLoading {
-                        Color.black.opacity(0.3)
-                            .edgesIgnoringSafeArea(.all)
-                        
-                        ProgressView("Saving...")
-                            .padding()
-                            .background(Color(.systemBackground))
-                            .cornerRadius(10)
-                            .shadow(radius: 10)
-                    }
-                }
-            )
+            .overlay(LoadingOverlay(isLoading: viewModel.isLoading))
             .alert(item: alertItem) { item in
                 Alert(
                     title: Text(item.title),
@@ -186,6 +93,150 @@ struct EventFormSheet: View {
         }
         
         return nil
+    }
+}
+
+// MARK: - Subviews
+
+struct EventDetailsSection: View {
+    @ObservedObject var viewModel: EventViewModel
+    
+    var body: some View {
+        Section(header: Text("Event Details")) {
+            TextField("Title", text: $viewModel.title)
+                .textContentType(.none)
+                .autocapitalization(.words)
+            
+            Picker("Type", selection: $viewModel.eventType) {
+                Text("Plans").tag("plan")
+                Text("Travel").tag("travel")
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            
+            TextField("Location", text: $viewModel.location)
+                .textContentType(.fullStreetAddress)
+            
+            DescriptionEditor(description: $viewModel.eventDescription)
+        }
+    }
+}
+
+struct DescriptionEditor: View {
+    @Binding var description: String
+    
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if description.isEmpty {
+                Text("Description")
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
+                    .padding(.leading, 4)
+            }
+            
+            TextEditor(text: $description)
+                .frame(minHeight: 100)
+        }
+    }
+}
+
+struct DateTimeSection: View {
+    @ObservedObject var viewModel: EventViewModel
+    
+    var body: some View {
+        Section(header: Text("Date & Time")) {
+            DatePicker("Start", selection: $viewModel.startDate, displayedComponents: [.date, .hourAndMinute])
+            
+            DatePicker("End", selection: $viewModel.endDate, displayedComponents: [.date, .hourAndMinute])
+            
+            DaySelectionView(viewModel: viewModel)
+        }
+    }
+}
+
+struct DaySelectionView: View {
+    @ObservedObject var viewModel: EventViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Days")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            HStack {
+                ForEach([1, 2], id: \.self) { day in
+                    DaySelectionButton(
+                        day: day,
+                        isSelected: viewModel.isDaySelected(day),
+                        onToggle: {
+                            viewModel.toggleDay(day)
+                        }
+                    )
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct ReminderSection: View {
+    @ObservedObject var viewModel: EventViewModel
+    
+    var body: some View {
+        Section(header: Text("Reminder")) {
+            Toggle("Remind me", isOn: $viewModel.reminderEnabled)
+            
+            if viewModel.reminderEnabled {
+                ReminderOptions(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+struct ReminderOptions: View {
+    @ObservedObject var viewModel: EventViewModel
+    
+    var body: some View {
+        HStack {
+            Text("Time Before")
+            
+            Spacer()
+            
+            Picker("Time Before", selection: $viewModel.reminderOffset) {
+                Text("15 minutes").tag(15)
+                Text("30 minutes").tag(30)
+                Text("1 hour").tag(60)
+                Text("2 hours").tag(120)
+                Text("1 day").tag(1440)
+            }
+            .pickerStyle(MenuPickerStyle())
+        }
+        
+        Picker("Notification Type", selection: $viewModel.reminderMode) {
+            Text("In-App").tag("inApp")
+            Text("Push Notification").tag("push")
+        }
+        .pickerStyle(SegmentedPickerStyle())
+    }
+}
+
+struct LoadingOverlay: View {
+    let isLoading: Bool
+    
+    var body: some View {
+        ZStack {
+            if isLoading {
+                Color.black.opacity(0.3)
+                    .edgesIgnoringSafeArea(.all)
+                
+                ProgressView("Saving...")
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .cornerRadius(10)
+                    .shadow(radius: 10)
+            }
+        }
     }
 }
 
