@@ -543,4 +543,54 @@ class CloudKitSyncManager {
             promise(.success(weekends))
         }.eraseToAnyPublisher()
     }
+
+    func fetchWeekendStatuses(from startDate: Date, to endDate: Date) -> AnyPublisher<[Date: String], Error> {
+        // Use "saturdayDate" as the field for querying the date range
+        let predicate = NSPredicate(format: "saturdayDate >= %@ AND saturdayDate <= %@", startDate as NSDate, endDate as NSDate)
+        
+        let query = CKQuery(recordType: "Weekend", predicate: predicate)
+        
+        // Optionally, specify desired keys for efficiency.
+        // "saturdayDate" and "status" are the relevant fields.
+        query.desiredKeys = ["saturdayDate", "status"]
+
+        let database = CKContainer.default().publicCloudDatabase // Or .privateCloudDatabase if that's where "Weekend" records are stored
+
+        return Future<[Date: String], Error> { promise in
+            database.perform(query, inZoneWith: nil) { records, error in
+                if let error = error {
+                    print("CloudKit error in fetchWeekendStatuses: \(error.localizedDescription)")
+                    promise(.failure(error))
+                    return
+                }
+
+                var statusMap = [Date: String]()
+                guard let fetchedRecords = records else {
+                    promise(.success([:])) // No records, return empty map
+                    return
+                }
+
+                for record in fetchedRecords {
+                    // Use "saturdayDate" to get the date
+                    guard let weekendDate = record["saturdayDate"] as? Date else {
+                        print("Warning: Could not cast 'saturdayDate' field from CloudKit record: \(record.recordID.recordName)")
+                        continue 
+                    }
+                    
+                    // "status" field for the status string (already correct in your file)
+                    guard let statusString = record["status"] as? String else {
+                        print("Warning: Could not cast 'status' field from CloudKit record: \(record.recordID.recordName)")
+                        continue
+                    }
+                    
+                    // Normalize the date to the start of the day to ensure consistent dictionary keys.
+                    // This is important if your date fields might have time components.
+                    let normalizedDate = Calendar.current.startOfDay(for: weekendDate)
+                    statusMap[normalizedDate] = statusString
+                }
+                promise(.success(statusMap))
+            }
+        }
+        .eraseToAnyPublisher()
+    }
 }

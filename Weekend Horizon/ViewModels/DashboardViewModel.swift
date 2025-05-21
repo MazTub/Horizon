@@ -68,7 +68,7 @@ class DashboardViewModel: ObservableObject {
         // You would need to implement this in CloudKitSyncManager.shared
         cloudKitManager.fetchWeekendStatuses(from: startDate, to: actualEndDate)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
+            .sink { [weak self] (completion: Subscribers.Completion<Error>) in
                 self?.isLoading = false
                 
                 if case .failure(let error) = completion {
