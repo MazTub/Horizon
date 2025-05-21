@@ -16,11 +16,6 @@ class DashboardViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    // Current year
-    private var currentYear: Int {
-        Calendar.current.component(.year, from: Date())
-    }
-    
     // CloudKit manager
     private let cloudKitManager = CloudKitSyncManager.shared
     private var cancellables = Set<AnyCancellable>()
@@ -49,7 +44,29 @@ class DashboardViewModel: ObservableObject {
     }
     
     private func loadYearlyWeekendStatus() {
-        cloudKitManager.fetchYearlyWeekendStatus(year: currentYear)
+        let calendar = Calendar.current
+        let today = Date()
+        
+        guard let twelveMonthsLater = calendar.date(byAdding: .month, value: 12, to: today),
+              let startDate = calendar.date(from: calendar.dateComponents([.year, .month], from: today)),
+              let endDate = calendar.date(from: calendar.dateComponents([.year, .month], from: twelveMonthsLater)) else {
+            self.errorMessage = "Could not calculate date range for 12-month view."
+            self.isLoading = false
+            return
+        }
+        
+        // We need to determine the actual end day of the 11th month from the startDate
+        // For example, if startDate is Nov 1, 2023, we want data up to Oct 31, 2024.
+        guard let actualEndDate = calendar.date(byAdding: .day, value: -1, to: calendar.date(byAdding: .month, value: 12, to: startDate)!) else {
+            self.errorMessage = "Could not calculate end date for 12-month view."
+            self.isLoading = false
+            return
+        }
+
+        // Conceptual: CloudKitManager needs a method to fetch for a date range or a series of months.
+        // For this example, let's assume a new method fetchWeekendStatuses(from: Date, to: Date)
+        // You would need to implement this in CloudKitSyncManager.shared
+        cloudKitManager.fetchWeekendStatuses(from: startDate, to: actualEndDate)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] completion in
                 self?.isLoading = false
