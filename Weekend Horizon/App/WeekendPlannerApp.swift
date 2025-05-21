@@ -4,24 +4,11 @@ import SwiftUI
 struct WeekendPlannerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let persistenceController = PersistenceController.shared
-    @State private var isShowingEventForm = false
-    @State private var selectedWeekendDate: Date?
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                .onReceive(NotificationCenter.default.publisher(for: .showEventForm)) { notification in
-                    if let weekendDate = notification.object as? Date {
-                        selectedWeekendDate = weekendDate
-                        isShowingEventForm = true
-                    }
-                }
-                .sheet(isPresented: $isShowingEventForm) {
-                    if let weekendDate = selectedWeekendDate {
-                        EventFormSheet(weekendDate: weekendDate)
-                    }
-                }
         }
     }
 }

@@ -469,11 +469,6 @@ class NotificationObserver: ObservableObject {
     }
 }
 
-extension Notification.Name {
-    static let inAppNotification = Notification.Name("inAppNotification")
-    static let navigateToEvent = Notification.Name("navigateToEvent")
-}
-
 // Extension to implement getBadgeCount on UNUserNotificationCenter
 extension UNUserNotificationCenter {
     func getBadgeCount(_ completion: @escaping (Int) -> Void) {

@@ -4,6 +4,7 @@ struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
     @State private var selectedWeekend: Date?
     @State private var showWeekendDetail = false
+    @State private var eventIdForNavigation: String?
     
     var body: some View {
         NavigationView {
@@ -58,6 +59,15 @@ struct DashboardView: View {
             .onReceive(NotificationCenter.default.publisher(for: .cloudKitDataDidChange)) { _ in
                 viewModel.loadData()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToEvent)) { notification in
+                if let eventId = notification.object as? String {
+                    // TODO: We need to ensure the Dashboard tab is active.
+                    // This might require communication up to MainTabView.
+                    // For now, assume Dashboard is visible or becomes visible.
+                    print("DashboardView received navigateToEvent for ID: \\(eventId)")
+                    self.navigateToEventScreen(with: eventId)
+                }
+            }
         }
     }
     
@@ -70,6 +80,23 @@ struct DashboardView: View {
         }
         .pickerStyle(SegmentedPickerStyle())
         .padding()
+    }
+    
+    private func navigateToEventScreen(with eventId: String) {
+        // TODO: Implement actual navigation to the event detail view
+        // 1. ViewModel fetches event by ID.
+        // 2. If event found, determine its weekendDate.
+        // 3. Set selectedWeekend = event.weekendDate
+        // 4. Set showWeekendDetail = true (or a new state for a specific event detail view)
+        // For now, we'll just store the ID. A more robust solution is needed.
+        self.eventIdForNavigation = eventId 
+        print("Attempting to navigate to event with ID: \\(eventId). Further implementation needed.")
+        // As a placeholder, if we can get the weekend date from the eventId (e.g. via viewModel),
+        // we could do:
+        // if let event = viewModel.fetchEvent(byId: eventId), let weekend = event.weekendDate {
+        //     self.selectedWeekend = weekend
+        //     self.showWeekendDetail = true
+        // }
     }
 }
 
@@ -417,7 +444,5 @@ struct ErrorView: View {
 }
 
 // MARK: - Extensions
+// Extension for Notification.Name was moved to Utilities/Constants/NotificationNames.swift
 
-extension Notification.Name {
-    static let navigateToMonth = Notification.Name("navigateToMonth")
-}

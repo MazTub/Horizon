@@ -59,18 +59,43 @@ struct MainTabView: View {
 
 struct AddEventTabView: View {
     @State private var isShowingAddSheet = false
-    
+
     var body: some View {
-        Button("") {
-            isShowingAddSheet = true
-        }
-        .sheet(isPresented: $isShowingAddSheet) {
-            NavigationView {
-                AddEventLandingView(isShowingSheet: $isShowingAddSheet)
-                    .navigationTitle("Add Event")
-                    .navigationBarItems(trailing: Button("Close") {
-                        isShowingAddSheet = false
-                    })
+        // Provide a clear UI for the Add tab
+        NavigationView { // Add NavigationView for a title
+            VStack {
+                Spacer()
+                Text("Plan a New Weekend Event")
+                    .font(.title2)
+                    .padding(.bottom)
+                Button(action: {
+                    isShowingAddSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add New Event")
+                    }
+                    .font(.headline)
+                    .padding()
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+                }
+                Spacer()
+                Spacer()
+            }
+            .navigationTitle("New Event") // Title for the tab view
+            .sheet(isPresented: $isShowingAddSheet) {
+                NavigationView { // This NavigationView is for AddEventLandingView
+                    AddEventLandingView(isShowingSheet: $isShowingAddSheet)
+                        .navigationTitle("Select Weekend Date") // More specific title
+                        .navigationBarItems(trailing: Button("Cancel") { // Changed from Close to Cancel
+                            isShowingAddSheet = false
+                        })
+                }
+                // It might be good to inject the environment(\.managedObjectContext) here 
+                // if AddEventLandingView or EventFormSheet need it, 
+                // though EventFormSheet might get it from its new presenter.
             }
         }
     }
@@ -80,6 +105,8 @@ struct AddEventLandingView: View {
     @Binding var isShowingSheet: Bool
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
+    @State private var showEventFormSheet = false
+    @State private var weekendDateForForm: Date?
     
     var body: some View {
         VStack(spacing: 20) {
@@ -118,38 +145,11 @@ struct AddEventLandingView: View {
             Button(action: {
                 // Find nearest weekend if not already on weekend
                 let calendar = Calendar.current
+                let weekendDate = calendar.weekendStartDate(for: selectedDate)
                 
-                // Determine if selected date is a weekend
-                let isWeekend = calendar.isDateInWeekend(selectedDate)
-                
-                var weekendDate = selectedDate
-                
-                if !isWeekend {
-                    // Find next Saturday
-                    var nextWeekendComponents = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDate)
-                    nextWeekendComponents.weekday = 7 // Saturday
-                    
-                    if let nextSaturday = calendar.date(from: nextWeekendComponents) {
-                        weekendDate = nextSaturday
-                    }
-                } else if calendar.component(.weekday, from: selectedDate) == 1 { // Sunday
-                    // Move back to the Saturday of this weekend
-                    weekendDate = calendar.date(byAdding: .day, value: -1, to: selectedDate)!
-                }
-                
-                // Reset time components to midnight
-                weekendDate = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: weekendDate)!
-                
-                // Show event form
-                isShowingSheet = false
-                
-                // Present event form with the selected weekend
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    NotificationCenter.default.post(
-                        name: .showEventForm,
-                        object: weekendDate
-                    )
-                }
+                // Show event form directly
+                self.weekendDateForForm = weekendDate
+                self.showEventFormSheet = true
             }) {
                 Text("Create Event")
                     .font(.headline)
@@ -165,6 +165,34 @@ struct AddEventLandingView: View {
             Spacer()
         }
         .padding(.top, 20)
+        .sheet(isPresented: $showEventFormSheet) {
+            if let date = weekendDateForForm {
+                EventFormSheet(weekendDate: date)
+            }
+        }
+    }
+}
+
+// Helper extension for Calendar
+extension Calendar {
+    func weekendStartDate(for date: Date) -> Date {
+        var weekendDate = date
+        // Determine if selected date is a weekend
+        if !self.isDateInWeekend(date) {
+            // Find next Saturday
+            var nextWeekendComponents = self.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+            nextWeekendComponents.weekday = 7 // Saturday (assuming Sunday is 1, Saturday is 7)
+            if let nextSaturday = self.date(from: nextWeekendComponents) {
+                weekendDate = nextSaturday
+            }
+        } else if self.component(.weekday, from: date) == 1 { // Sunday
+            // Move back to the Saturday of this weekend
+            if let saturdayBefore = self.date(byAdding: .day, value: -1, to: date) {
+                 weekendDate = saturdayBefore
+            }
+        }
+        // Reset time components to midnight
+        return self.date(bySettingHour: 0, minute: 0, second: 0, of: weekendDate) ?? weekendDate
     }
 }
 
@@ -254,7 +282,5 @@ struct OnboardingPageView: View {
 }
 
 // MARK: - Extensions
+// Extension for Notification.Name was moved to Utilities/Constants/NotificationNames.swift
 
-extension Notification.Name {
-    static let showEventForm = Notification.Name("showEventForm")
-}

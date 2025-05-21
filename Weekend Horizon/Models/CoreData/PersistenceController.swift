@@ -109,7 +109,4 @@ class PersistenceController: ObservableObject {
     }
 }
 
-// Keep this extension for future CloudKit implementation
-extension Notification.Name {
-    static let cloudKitDataDidChange = Notification.Name("cloudKitDataDidChange")
-}
+// Extension for Notification.Name (including .cloudKitDataDidChange) was moved to Utilities/Constants/NotificationNames.swift
